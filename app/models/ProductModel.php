@@ -9,41 +9,14 @@ class ProductModel
         $this->conn = $db;
     }
 
-    public function getProducts($searchTerm = '', $minPrice = null, $maxPrice = null)
+    public function getProducts()
     {
         $query = "
-            SELECT p.id, p.name, p.description, p.price, p.image, c.name AS category_name,
-                   CASE 
-                       WHEN p.image IS NOT NULL AND p.image != '' 
-                       THEN CONCAT('/webbanhang/public/uploads/products/', p.image)
-                       ELSE NULL
-                   END as image_url
+            SELECT p.id, p.name, p.description, p.price, p.image, c.name AS category_name
             FROM " . $this->table_name . " p
             LEFT JOIN category c ON p.category_id = c.id
-            WHERE 1=1
         ";
-
-        $params = [];
-
-        if (!empty($searchTerm)) {
-            $query .= " AND (p.name LIKE :searchTerm OR p.description LIKE :searchTerm)";
-            $params[':searchTerm'] = "%$searchTerm%";
-        }
-
-        if ($minPrice !== null) {
-            $query .= " AND p.price >= :minPrice";
-            $params[':minPrice'] = $minPrice;
-        }
-
-        if ($maxPrice !== null) {
-            $query .= " AND p.price <= :maxPrice";
-            $params[':maxPrice'] = $maxPrice;
-        }
-
         $stmt = $this->conn->prepare($query);
-        foreach ($params as $key => $value) {
-            $stmt->bindValue($key, $value);
-        }
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_OBJ);
     }
@@ -60,45 +33,6 @@ class ProductModel
         $stmt->bindParam(':id', $id, PDO::PARAM_INT);
         $stmt->execute();
         return $stmt->fetch(PDO::FETCH_OBJ);
-    }
-
-    public function getProductsByCategory($categoryId, $searchTerm = '', $minPrice = null, $maxPrice = null)
-    {
-        $query = "
-            SELECT p.id, p.name, p.description, p.price, p.image, c.name AS category_name,
-                   CASE 
-                       WHEN p.image IS NOT NULL AND p.image != '' 
-                       THEN CONCAT('/webbanhang/public/uploads/products/', p.image)
-                       ELSE NULL
-                   END as image_url
-            FROM " . $this->table_name . " p
-            LEFT JOIN category c ON p.category_id = c.id
-            WHERE p.category_id = :category_id
-        ";
-
-        $params = [':category_id' => $categoryId];
-
-        if (!empty($searchTerm)) {
-            $query .= " AND (p.name LIKE :searchTerm OR p.description LIKE :searchTerm)";
-            $params[':searchTerm'] = "%$searchTerm%";
-        }
-
-        if ($minPrice !== null) {
-            $query .= " AND p.price >= :minPrice";
-            $params[':minPrice'] = $minPrice;
-        }
-
-        if ($maxPrice !== null) {
-            $query .= " AND p.price <= :maxPrice";
-            $params[':maxPrice'] = $maxPrice;
-        }
-
-        $stmt = $this->conn->prepare($query);
-        foreach ($params as $key => $value) {
-            $stmt->bindValue($key, $value);
-        }
-        $stmt->execute();
-        return $stmt->fetchAll(PDO::FETCH_OBJ);
     }
 
     public function addProduct($name, $description, $price, $category_id, $image)
@@ -193,6 +127,20 @@ class ProductModel
         $id = intval($id);
         $stmt->bindParam(':id', $id);
         return $stmt->execute();
+    }
+
+    public function getProductsByCategory($categoryId)
+    {
+        $query = "
+            SELECT p.id, p.name, p.description, p.price, p.image, c.name AS category_name
+            FROM " . $this->table_name . " p
+            LEFT JOIN category c ON p.category_id = c.id
+            WHERE p.category_id = :category_id
+        ";
+        $stmt = $this->conn->prepare($query);
+        $stmt->bindParam(':category_id', $categoryId, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_OBJ);
     }
 }
 ?>

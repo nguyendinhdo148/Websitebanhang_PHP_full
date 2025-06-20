@@ -64,6 +64,7 @@ function checkAuthAndLoadData() {
     const token = localStorage.getItem('jwtToken');
     const hasSession = <?php echo isset($_SESSION['user']) ? 'true' : 'false'; ?>;
     
+    
     if (!token && !hasSession) {
         alert('Vui lòng đăng nhập');
         window.location.href = '/webbanhang/account/login';
@@ -152,14 +153,17 @@ function loadProducts(categoryId = '') {
         } : {}
     })
     .then(response => {
+        console.log('Products API response:', response); // log response object
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         return response.json();
     })
     .then(products => {
+        console.log('Products data:', products); // log dữ liệu trả về từ API
         container.innerHTML = products.length ? '' : createEmptyMessage();
         products.forEach(product => {
+            console.log('Product:', product); // log từng sản phẩm
             container.innerHTML += createProductCard(product);
         });
     })

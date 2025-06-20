@@ -153,73 +153,125 @@ class AccountController
     }
     
     function logout()
-    {
-        // Hủy toàn bộ session
-        session_unset();
-        session_destroy();
-        
-        header('Location: /webbanhang/product');
+{
+    // Bước 1: Nếu có token trong cookie => xóa cookie
+    if (isset($_COOKIE['auth_token'])) {
+        setcookie('auth_token', '', time() - 10, '/', '', isset($_SERVER['HTTPS']), true);
+    }
+
+    // Bước 2: Kiểm tra nếu có Authorization Bearer token => API client đang dùng header
+    $headers = getallheaders();
+    $authHeader = $headers['Authorization'] ?? '';
+
+    $isApiRequest = false;
+
+    if (strpos($authHeader, 'Bearer ') === 0) {
+        $isApiRequest = true;
+    }
+
+    // Bước 3: Hủy session nếu có (web login)
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+
+    session_unset();
+    session_destroy();
+
+    // Bước 4: Nếu là gọi từ fetch/Postman (API) thì trả về JSON
+    if (
+        $isApiRequest ||
+        (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') ||
+        (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false)
+    ) {
+        header('Content-Type: application/json');
+        echo json_encode([
+            'message' => 'Đăng xuất thành công. Vui lòng xóa token khỏi client nếu đang dùng JWT.'
+        ]);
         exit;
     }
-    
+
+    // Bước 5: Nếu là request từ trình duyệt (web) thì chuyển hướng
+    header('Location: /webbanhang/account/login');
+    exit;
+}
+
     public function checkLogin()
-    {
-        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+{
+    if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+        // Check if it's an API request (JSON content type)
+        if (isset($_SERVER['CONTENT_TYPE']) && strpos($_SERVER['CONTENT_TYPE'], 'application/json') !== false) {
+            $data = json_decode(file_get_contents("php://input"), true);
+            $username = $data['username'] ?? '';
+            $password = $data['password'] ?? '';
+            $isApiRequest = true;
+        } else {
             $username = $_POST['username'] ?? '';
             $password = $_POST['password'] ?? '';
+            $isApiRequest = false;
+        }
 
-            $account = $this->accountModel->getAccountByUserName($username);
-            
-            if ($account) {
-                $pwd_hashed = $account->password;
-                
-                if (password_verify($password, $pwd_hashed)) {
-                    // Bắt đầu session nếu chưa
-                    if (session_status() === PHP_SESSION_NONE) {
-                        session_start();
-                    }
+        $account = $this->accountModel->getAccountByUserName($username);
+        
+        if ($account && password_verify($password, $account->password)) {
+            // Thêm thời gian hết hạn token vào payload
+            $payload = [
+                'iat' => time(),                       // thời điểm phát hành token
+                'exp' => time() + 10,                // thời điểm hết hạn: sau 1 giờ
+                'data' => [
+                    'id' => $account->id,
+                    'username' => $account->username,
+                    'fullname' => $account->fullname,
+                    'role' => $account->role
+                ]
+            ];
 
-                    // Lưu thông tin user vào session
-                    $_SESSION['user'] = [
-                        'id' => $account->id,
-                        'username' => $account->username,
-                        'fullname' => $account->fullname,
-                        'role' => $account->role // Lưu role vào session
-                    ];
+            $token = $this->jwtHandler->encode($payload);
 
-                    header('Location: /webbanhang/product');
-                    exit;
-                } else {
-                    // Xử lý khi mật khẩu sai
-                    $_SESSION['login_error'] = "Mật khẩu không chính xác";
-                    header('Location: /webbanhang/account/login');
-                    exit;
-                }
+            if ($isApiRequest) {
+                header('Content-Type: application/json');
+                echo json_encode([
+                    'token' => $token,
+                    'user' => $payload['data']
+                ]);
+                exit;
             } else {
-                // Xử lý khi không tìm thấy tài khoản
-                $_SESSION['login_error'] = "Tài khoản không tồn tại";
+                // For web requests, store token in cookie and user info in session
+                setcookie('auth_token', $token, [
+                    'expires' => time() + 10, // 1 hour
+                    'path' => '/',
+                    'secure' => isset($_SERVER['HTTPS']),
+                    'httponly' => true,
+                    'samesite' => 'Strict'
+                ]);
+
+                // Start session if not already started
+                if (session_status() === PHP_SESSION_NONE) {
+                    session_start();
+                }
+
+                $_SESSION['user'] = $payload['data'];
+                header('Location: /webbanhang/product');
+                exit;
+            }
+        } else {
+            if ($isApiRequest) {
+                header('Content-Type: application/json');
+                http_response_code(401);
+                echo json_encode(['message' => 'Thông tin đăng nhập không hợp lệ']);
+                exit;
+            } else {
+                // For web requests, set error message and redirect back to login
+                if (session_status() === PHP_SESSION_NONE) {
+                    session_start();
+                }
+                $_SESSION['login_error'] = "Tài khoản hoặc mật khẩu không chính xác";
                 header('Location: /webbanhang/account/login');
                 exit;
             }
         }
     }
+}
 
-    public function checkLoginAPI()
-    {
-        header('Content-Type: application/json');
-        $data = json_decode(file_get_contents("php://input"), true);
-        $username = $data['username'] ?? '';
-        $password = $data['password'] ?? '';
-        $user = $this->accountModel->getAccountByUserName($username);
-        
-        if ($user && password_verify($password, $user->password)) {
-            $token = $this->jwtHandler->encode(['id' => $user->id, 'username' => $user->username]);
-            echo json_encode(['token' => $token]);
-        } else {
-            http_response_code(401);
-            echo json_encode(['message' => 'Invalid credentials']);
-        }
-    }
     
     public function list() {
         // Check if user is admin

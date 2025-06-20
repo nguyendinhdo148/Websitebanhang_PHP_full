@@ -15,8 +15,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const id = document.getElementById('id').value;
     // Lấy dữ liệu danh mục từ API
     fetch(`/webbanhang/api/category/${id}`)
-        .then(res => res.json())
+        .then(res => {
+            console.log('Fetch category API response:', res);
+            return res.json();
+        })
         .then(data => {
+            console.log('API get category response:', data); // log dữ liệu trả về
             if (data && data.name) {
                 document.getElementById('name').value = data.name;
             }
@@ -25,12 +29,16 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('edit-category-form').addEventListener('submit', function(e) {
         e.preventDefault();
         const name = document.getElementById('name').value;
+        console.log('Submitting category update:', { id, name }); // log dữ liệu gửi đi
         fetch(`/webbanhang/api/category/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name })
         })
-        .then(res => res.json())
+        .then(res => {
+            console.log('Fetch edit category API response:', res);
+            return res.json();
+        })
         .then(data => {
             console.log('API edit category response:', data); // log dữ liệu trả về
             const msg = document.getElementById('message');
@@ -41,7 +49,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 msg.innerHTML = `<div class="alert alert-danger">${data.message || 'Cập nhật danh mục thất bại'}</div>`;
             }
         })
-        .catch(() => {
+        .catch((err) => {
+            console.error('API edit category error:', err);
             document.getElementById('message').innerHTML = '<div class="alert alert-danger">Có lỗi xảy ra!</div>';
         });
     });

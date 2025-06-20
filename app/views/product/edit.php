@@ -33,6 +33,7 @@ document.addEventListener("DOMContentLoaded", function() {
     fetch(`/webbanhang/api/product/${productId}`)
         .then(res => res.json())
         .then(data => {
+            console.log('API get product response:', data); // log dữ liệu trả về
             document.getElementById('id').value = data.id;
             document.getElementById('name').value = data.name;
             document.getElementById('description').value = data.description;
@@ -44,6 +45,7 @@ document.addEventListener("DOMContentLoaded", function() {
     fetch('/webbanhang/api/category')
         .then(res => res.json())
         .then(data => {
+            console.log('API get categories response:', data); // log dữ liệu trả về
             const select = document.getElementById('category_id');
             data.forEach(category => {
                 const option = document.createElement('option');
@@ -55,6 +57,7 @@ document.addEventListener("DOMContentLoaded", function() {
             fetch(`/webbanhang/api/product/${productId}`)
                 .then(res => res.json())
                 .then(product => {
+                    console.log('API get product for category select:', product); // log dữ liệu trả về
                     select.value = product.category_id;
                 });
         });
